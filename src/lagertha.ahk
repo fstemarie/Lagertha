@@ -19,7 +19,7 @@ global emojis := ["(hi)", "(highfive)", "(fistbump)", "(thumbsup)", "(party)", "
     "(beamingfacewithsmilingeyes)"]
 global START_SOUND := sounds_dir "start.mp3"
 global hipics := [
-    ;pics_dir "monkey1.jpg",
+    pics_dir "monkey1.jpg",
     pics_dir "monkey2.jpg",
     pics_dir "squirrel1.jpg",
     pics_dir "cat1.jpg",
@@ -27,7 +27,8 @@ global hipics := [
     pics_dir "dog2.jpg",
     pics_dir "dog3.jpg",
     pics_dir "dog4.jpg",
-    pics_dir "dog5.jpg"
+    pics_dir "dog5.jpg",
+    pics_dir "chevre1.webp"
 ]
 global greetings := [
     "Buenos dias{!} ",
@@ -279,7 +280,7 @@ XButton1:: SendInput("^#{Right}")
     Send("Au revoir tout le monde{!}")
 }
 
-:::btm::
+:::btm2::
 {
     Send("Bonjour tout le monde{!}")
     rndPic := Random(1, hipics.Length)
@@ -302,6 +303,69 @@ XButton1:: SendInput("^#{Right}")
         DllCall("DeleteObject", "ptr", picCopy)
         OnClipboardChange(App_OnClipboardChange, 1)
     }
+}
+
+:::btm::
+{
+    Send("Bonjour tout le monde{!}")
+    
+    if (hipics.Length = 0)
+        return
+        
+    rndPic := Random(1, hipics.Length)
+    picPath := hipics[rndPic]
+    
+    if FileExist(picPath)
+    {
+        ; Temporarily disable clipboard listener
+        OnClipboardChange(App_OnClipboardChange, 0)
+        
+        ; Save original clipboard
+        clipsaved := ClipboardAll()
+        
+        ; Put the WebP file on the clipboard as a file drop (HDROP)
+        if SetClipboardFile(picPath)
+        {
+            Sleep(150)
+            Send("^v")
+            Sleep(300) ; Brief delay to allow target app to process file paste
+        }
+        
+        ; Restore original clipboard
+        A_Clipboard := clipsaved
+        OnClipboardChange(App_OnClipboardChange, 1)
+    }
+}
+
+; Helper function: Puts a file path onto the clipboard using Win32 CF_HDROP
+SetClipboardFile(filePath)
+{
+    ; Method A: Simple for-loop over the file pattern
+    Loop Files, filePath, "F"
+        filePath := A_LoopFileFullPath
+    
+    if !FileExist(filePath)
+        return false
+
+    ; Structure layout: DROPFILES (20 bytes header + null-terminated UTF-16 path)
+    bufSize := 20 + StrLen(filePath) * 2 + 4
+    hMem := DllCall("GlobalAlloc", "UInt", 0x42, "UPtr", bufSize, "UPtr")
+    pMem := DllCall("GlobalLock", "UPtr", hMem, "UPtr")
+    
+    NumPut("UInt", 20, pMem, 0)  ; pFiles offset
+    NumPut("UInt", 1,  pMem, 16) ; fWide = TRUE
+    StrPut(filePath, pMem + 20, "UTF-16")
+    
+    DllCall("GlobalUnlock", "UPtr", hMem)
+    
+    if DllCall("OpenClipboard", "UPtr", 0)
+    {
+        DllCall("EmptyClipboard")
+        DllCall("SetClipboardData", "UInt", 15, "UPtr", hMem) ; CF_HDROP = 15
+        DllCall("CloseClipboard")
+        return true
+    }
+    return false
 }
 #HotIf
 
